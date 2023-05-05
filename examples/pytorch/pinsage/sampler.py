@@ -1,7 +1,6 @@
 import dgl
-import numpy as np
 import torch
-from torch.utils.data import DataLoader, IterableDataset
+from torch.utils.data import IterableDataset
 from torchtext.data.functional import numericalize_tokens_from_iterator
 
 
@@ -118,6 +117,8 @@ class NeighborSampler(object):
         neg_graph = dgl.graph(
             (heads, neg_tails), num_nodes=self.g.num_nodes(self.item_type)
         )
+
+        # 只有（heads/tails/neg_tails）构成的（两个）graph
         pos_graph, neg_graph = dgl.compact_graphs([pos_graph, neg_graph])
         seeds = pos_graph.ndata[dgl.NID]
 
