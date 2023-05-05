@@ -26,14 +26,35 @@ class PinSAGEModel(nn.Module):
         self.scorer = layers.ItemToItemScorer(full_graph, ntype)
 
     def forward(self, pos_graph, neg_graph, blocks):
+        # 得到batch中heads+tails+neg_tails这些节点的最终embedding
+        # shape: [batch_node_num, dimension]
         h_item = self.get_repr(blocks)
+
+        # 得到heads->tails这些边上的得分
+        # shape: [batch_size, 1]
         pos_score = self.scorer(pos_graph, h_item)
+
+        # 得到heads->neg_tails这些边上的得分
+        # shape: [batch_size, 1]
         neg_score = self.scorer(neg_graph, h_item)
+
+        # 返回margin hinge loss，这里的margin是1
         return (neg_score - pos_score + 1).clamp(min=0)
 
     def get_repr(self, blocks):
+        """
+        输入节点和输出节点的映射层share weights
+        """
+
+        # 将输入节点上的原始特征映射成hidden_dims长的向量
         h_item = self.proj(blocks[0].srcdata)
+
+        # 将输出节点上的原始特征映射成hidden_dims长的向量
         h_item_dst = self.proj(blocks[-1].dstdata)
+
+        # 通过self.sage，经过多层卷积，得到输出节点上的卷积结果
+        # 再加上这些输出节点上原始特征的映射结果
+        # 得到输出节点上最终的向量表示
         return h_item_dst + self.sage(blocks, h_item)
 
 

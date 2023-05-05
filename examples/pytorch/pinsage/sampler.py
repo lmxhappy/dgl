@@ -57,6 +57,9 @@ class ItemToItemBatchSampler(IterableDataset):
 
 
 class NeighborSampler(object):
+    """
+    用到了PinSAGESampler
+    """
     def __init__(
         self,
         g,
@@ -87,10 +90,16 @@ class NeighborSampler(object):
         ]
 
     def sample_blocks(self, seeds, heads=None, tails=None, neg_tails=None):
+        """
+        # 再由heads+tails+neg_tails反向搜索，构建每层卷积所需要的block
+        """
         blocks = []
         for sampler in self.samplers:
+            # 通过随机游走进行重要性采样，生成中间状态frontier
+            # frontier是一个DGLGraph
             frontier = sampler(seeds)
             if heads is not None:
+                # 如果是在训练，需要将heads->tails和head->neg_tails这些待预测的边都去掉，防止信息泄漏
                 eids = frontier.edge_ids(
                     torch.cat([heads, heads]),
                     torch.cat([tails, neg_tails]),
@@ -103,9 +112,13 @@ class NeighborSampler(object):
                     # print(frontier)
                     # print(frontier.edata['weights'])
                     # frontier.edata['weights'] = old_frontier.edata['weights'][frontier.edata[dgl.EID]]
+
+            # 只保留seeds这些节点，将frontier压缩成block
+            # 并设置block的input/output nodes
             block = compact_and_copy(frontier, seeds)
             seeds = block.srcdata[dgl.NID]
             blocks.insert(0, block)
+
         return blocks
 
     def sample_from_item_pairs(self, heads, tails, neg_tails):

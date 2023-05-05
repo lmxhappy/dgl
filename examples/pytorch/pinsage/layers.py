@@ -151,6 +151,9 @@ class SAGENet(nn.Module):
 
     def forward(self, blocks, h):
         for layer, block in zip(self.convs, blocks):
+            # 从h中分离出h_dst，应该是一种比较老的写法
+            # 直接写成h_dst = h[:block.number_of_dst_nodes()]即可
+            # 看了一下源码，这里用名称前缀来判断是否是dst的写法，应该就是block.number_of_dst_nodes()的内部实现
             h_dst = h[: block.num_nodes("DST/" + block.ntypes[0])]
             h = layer(block, (h, h_dst), block.edata["weights"])
         return h
@@ -172,10 +175,14 @@ class ItemToItemScorer(nn.Module):
         """
         item_item_graph : graph consists of edges connecting the pairs
         h : hidden state of every node
+            shape:[graph_node_num, dimension](95, 64)
         """
         with item_item_graph.local_scope():
             item_item_graph.ndata["h"] = h
+            # 边两端节点的embedding做点积
+            # 每个边的两端的node的属性h和属性h做multipy，然后将结果设置到结果edata里，edata是一个dict，以s为key。
             item_item_graph.apply_edges(fn.u_dot_v("h", "h", "s"))
+            # 再加上首尾两节点的bias
             item_item_graph.apply_edges(self._add_bias)
             pair_score = item_item_graph.edata["s"]
         return pair_score
